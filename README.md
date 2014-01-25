@@ -56,12 +56,25 @@ Examples:
 ## Modules
 * SSH module
  * Open SSH-pipe to pre-defined host allowing user to access the server machine (that might be inside NAT)
+ * 'HB OK/FAIL' when connection to server state
+ * 'INFO remote shell access ok/lost' -- When state changes
 
 * PING module
- * Checks that connection to pre-defined host is ok, that is we have internet connection
+ * Checks that connection to pre-defined host is ok, that is we have internet connection. Works in the order that state changes from ifup->internetok->dnsok, and returns on step down on error.
+ * 'HB OK/FAIL' when connection to 8.8.8.8 (PingServer) is ok
+ * 'INFO interface up/down' -- interface state chages up->down or down->up
+ * 'INFO internet ok/failed' -- connection to PingServer changes 
+ * 'INFO dns ok/failed' -- connection to google.com changes
+ 
+* HTTP GET
+ * Checks that client can do normal HTTP get from server known
+ * 'HB OK/FAIL' connection is up and running
+ * 'INFO http ok/failed' connection state changed
 
 * TCPDUMP
  * Dumps the captured trafic on the INFO stream
+ * 'INFO <data>'
+
 
 ## Clients
 * Android via Bluetooth
@@ -70,6 +83,7 @@ Examples:
 * Speaker
  * Read out aloud info messages
 
-
+* Console
+ * Use STDIN for launching and STDOUT for messages
 
 
