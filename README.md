@@ -55,20 +55,20 @@ Examples:
 
 ## Modules
 * SSH module
-** Open SSH-pipe to pre-defined host allowing user to access the server machine (that might be inside NAT)
+ * Open SSH-pipe to pre-defined host allowing user to access the server machine (that might be inside NAT)
 
 * PING module
-** Checks that connection to pre-defined host is ok, that is we have internet connection
+ * Checks that connection to pre-defined host is ok, that is we have internet connection
 
 * TCPDUMP
-** Dumps the captured trafic on the INFO stream
+ * Dumps the captured trafic on the INFO stream
 
 ## Clients
 * Android via Bluetooth
-** Android application to be connected via Bluetooth
+ * Android application to be connected via Bluetooth
 
 * Speaker
-** Read out aloud info messages
+ * Read out aloud info messages
 
 
 
