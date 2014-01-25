@@ -8,6 +8,7 @@ import zmq
 from  multiprocessing import Process
 
 from Sundberg.Logger import *
+import Modules
 
 def get_command_line_arguments( ):
    parser = argparse.ArgumentParser(description='Server for Networkdroid')
@@ -35,12 +36,17 @@ def main( args ):
    return 0
 
 
-###############################################################################
+
+
+
+
+###########################################################################################################
 #
-###############################################################################
+###########################################################################################################
 class Server:
  def __init__( self, log, config ):
-    self.log   = log
+    self.log    = log
+    self.config = config
     try:
       self.port_client_req = int( config["port_client_req"] )
       self.port_client_pub = int( config["port_client_pub"] )
@@ -50,14 +56,14 @@ class Server:
       raise Exception("Bad configuration")
       
     self.context = zmq.Context(1)
-      
+    self.protocol = "tcp://127.0.0.1:"
+    
  def shutdown( self ):
     self.context.term()
     self.log.info("Server shutdown done.")
-    
+ 
+ ###########################################################################################################
  def forward_modules_to_clients( self ):
-    
-
     self.log.info("Starting SUB->PUB forward from socket %d to %d " % (self.port_module_sub, self.port_client_pub ))
     #import pdb; pdb.set_trace()
     frontend = None
@@ -65,13 +71,13 @@ class Server:
     try:
       # Socket facing clients
       frontend = self.context.socket(zmq.SUB)
-      frontend.bind("tcp://127.0.0.1:%d" % self.port_module_sub )
+      frontend.bind("%s%d" % ( self.protocol, self.port_module_sub ) )
       # No filtering of messages please
       frontend.setsockopt(zmq.SUBSCRIBE, "")
       
       # Socket facing services
       backend = self.context.socket(zmq.PUB)
-      backend.bind("tcp://127.0.0.1:%d" % self.port_client_pub  )
+      backend.bind("%s%d" % ( self.protocol, self.port_client_pub  ) )
       
       process = Process( target = zmq.device,
                          args = ( zmq.FORWARDER, frontend, backend ) )
@@ -89,8 +95,50 @@ class Server:
         if backend:
            backend.close()
            
+  ###########################################################################################################
+  def handle_client_requests( self ):
+    socket = self.context.socket( zmq.REP )
+    socket.backend.bind("%s%d" % ( self.protocol, self.port_client_req ) )
+     
+    commands_to_functions_map = { 'launch' : self.module_launch,
+                                  'kill'   : self.module_kill }
+    while True:
+      message = socket.recv()
+      parts=message.lower().split()
+      
+      if parts.len != 2 or parts[0] not in commands_to_functions_map:
+         self.log.warning("Not sure what we received: " + message )
+         socket.send("FAIL")
+         continue
+      
+      if commands_to_functions_map[ parts[0] ]( parts[1] ):
+        socket.send("OK")
+      else
+        socket.send("FAIL")
+        
+  ###########################################################################################################     
+  def module_launch(self, module_name ):
+     if module_name not in self.registered_modules:
+        self.log.warning("Module '%s' is not known, cannot be launched." % module_name )
+        return false
+     module = self.registered_modules[module_name]( self.log, self.config  ) 
+     if module.start() == False:
+        return false
+     self.running_modules[ module_name ] = module
+     return true
+  def module_kill( self, module_name ):
+     if module_name not in self.running_modules:
+        self.log.warning("Module '%s' kill requested but its not running!" % module_name )
+        return false
+     
+     self.running_modules[ module_name ].terminate()
+     del( self.running_modules[ module_name ] )
+     return true
    
    
+
+
+
    
 if __name__ == "__main__":
     sys.exit( main( get_command_line_arguments() ) )
