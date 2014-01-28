@@ -8,7 +8,8 @@ import zmq
 from  multiprocessing import Process
 
 from Sundberg.Logger import *
-import Modules
+import Modules.BasePing
+
 
 def get_command_line_arguments( ):
    parser = argparse.ArgumentParser(description='Server for Networkdroid')
@@ -28,7 +29,8 @@ def main( args ):
    # from modules to all the clients
    server.forward_modules_to_clients()
    log.info("Forwarder started")
-   time.sleep(5)
+   server.handle_client_requests()
+      
    log.info("All done, bye")
    
    server.shutdown()
@@ -56,34 +58,43 @@ class Server:
       raise Exception("Bad configuration")
       
     self.context = zmq.Context(1)
-    self.protocol = "tcp://127.0.0.1:"
+    self.protocol = config["protocol"]
+    
+    self.running_modules    = {}
+    self.registered_modules = { 'baseping' : Modules.BasePing.BasePing }
     
  def shutdown( self ):
+    self.log.warning("Server shutdown started.")
+    self.forward_process.terminate()
     self.context.term()
     self.log.info("Server shutdown done.")
  
  ###########################################################################################################
  def forward_modules_to_clients( self ):
+    self.forward_process = Process( target = Server.forward_modules_to_clients_raw,
+                         args = ( self,  ) )
+    self.forward_process.daemon = True
+    self.forward_process.start()
+    
+ def forward_modules_to_clients_raw( self ):     
     self.log.info("Starting SUB->PUB forward from socket %d to %d " % (self.port_module_sub, self.port_client_pub ))
     #import pdb; pdb.set_trace()
     frontend = None
     backend = None
     try:
       # Socket facing clients
-      frontend = self.context.socket(zmq.SUB)
-      frontend.bind("%s%d" % ( self.protocol, self.port_module_sub ) )
+      context = zmq.Context(1)
+      frontend = context.socket(zmq.SUB)
+      frontend.bind("%s:%d" % ( self.protocol, self.port_module_sub ) )
       # No filtering of messages please
       frontend.setsockopt(zmq.SUBSCRIBE, "")
       
       # Socket facing services
-      backend = self.context.socket(zmq.PUB)
-      backend.bind("%s%d" % ( self.protocol, self.port_client_pub  ) )
-      
-      process = Process( target = zmq.device,
-                         args = ( zmq.FORWARDER, frontend, backend ) )
-      process.daemon = True
-      process.start()
-        
+      backend = context.socket(zmq.PUB)
+      backend.bind("%s:%d" % ( self.protocol, self.port_client_pub  ) )
+
+      zmq.device( zmq.FORWARDER, frontend, backend )
+      print "FAIL" 
     except Exception as e:
        self.log.error("Exception while running forward: " + str(e))
        raise Exception("Forwarder failed")
@@ -95,45 +106,69 @@ class Server:
         if backend:
            backend.close()
            
-  ###########################################################################################################
-  def handle_client_requests( self ):
+ ###########################################################################################################
+    
+ def handle_client_requests( self ):
+    
     socket = self.context.socket( zmq.REP )
-    socket.backend.bind("%s%d" % ( self.protocol, self.port_client_req ) )
+    socket.bind("%s:%d" % ( self.protocol, self.port_client_req ) )
+    
+    self.log.info("Starting control socket to port %d " % self.port_client_req  )
      
     commands_to_functions_map = { 'launch' : self.module_launch,
-                                  'kill'   : self.module_kill }
+                                  'kill'   : self.module_kill
+                                }
     while True:
-      message = socket.recv()
-      parts=message.lower().split()
+      message = socket.recv().lower()
       
-      if parts.len != 2 or parts[0] not in commands_to_functions_map:
+      if message == "term":
+         break
+         
+      if message == "list":
+         socket.send("MODULES " + " ".join( self.registered_modules.keys() ) )
+         continue
+      
+      parts=message.split()
+      
+      if len(parts) != 2 or parts[0] not in commands_to_functions_map:
          self.log.warning("Not sure what we received: " + message )
          socket.send("FAIL")
          continue
       
       if commands_to_functions_map[ parts[0] ]( parts[1] ):
         socket.send("OK")
-      else
+      else:
         socket.send("FAIL")
         
-  ###########################################################################################################     
-  def module_launch(self, module_name ):
+ ###########################################################################################################     
+ def module_launch(self, module_name ):
      if module_name not in self.registered_modules:
         self.log.warning("Module '%s' is not known, cannot be launched." % module_name )
-        return false
-     module = self.registered_modules[module_name]( self.log, self.config  ) 
-     if module.start() == False:
-        return false
+        return False
+     
+     if module_name in self.running_modules:
+        self.log.warning("Module '%s' is already running." % module_name )
+        return False;
+     
+     self.log.info("Launching module '%s'." % module_name )
+     module = self.registered_modules[module_name]( self.log, self.config ) 
+     
+     if module.start_module() == False:
+        return False
+     
      self.running_modules[ module_name ] = module
-     return true
-  def module_kill( self, module_name ):
+     return True
+  
+  
+ def module_kill( self, module_name ):
      if module_name not in self.running_modules:
         self.log.warning("Module '%s' kill requested but its not running!" % module_name )
-        return false
+        return False
      
      self.running_modules[ module_name ].terminate()
      del( self.running_modules[ module_name ] )
-     return true
+     self.log.info("Killing module '%s'." % module_name )
+     return True
    
    
 

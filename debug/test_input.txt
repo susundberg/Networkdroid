@@ -1,0 +1,7 @@
+LAUNCH foo
+LAUNCH module
+KILL foo
+KILL module
+TERM
+
+
