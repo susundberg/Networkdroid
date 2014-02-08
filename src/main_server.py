@@ -5,10 +5,12 @@ import json
 import argparse
 import sys
 import zmq
+import time
+
 from  multiprocessing import Process
 
 from Sundberg.Logger import *
-import Modules.BasePing
+from Modules import NetmodBase, Ping
 
 
 def get_command_line_arguments( ):
@@ -25,9 +27,21 @@ def main( args ):
    
    server = Server( log, config )     
    
+   server.registered_modules = { 'baseping' : NetmodBase.NetmodBase,
+                                 'ping' : Ping.Ping
+                               }
+   
+   server.commands_to_functions_map = { 
+                                 'launch' : server.function_module_launch,
+                                 'kill'   : server.function_module_kill,
+                                 'list'   : server.function_print_info
+                                }
+   
    # Then start the forward process, it will handle all messages
    # from modules to all the clients
    server.forward_modules_to_clients()
+   server.function_module_launch( ["baseping"] )
+   
    log.info("Forwarder started")
    server.handle_client_requests()
       
@@ -61,7 +75,8 @@ class Server:
     self.protocol = config["protocol"]
     
     self.running_modules    = {}
-    self.registered_modules = { 'baseping' : Modules.BasePing.BasePing }
+    self.registered_modules = None
+    self.commands_to_functions_map = None
     
  def shutdown( self ):
     self.log.warning("Server shutdown started.")
@@ -105,74 +120,102 @@ class Server:
            frontend.close()
         if backend:
            backend.close()
-           
+
+
  ###########################################################################################################
-    
+ # Main loop here
+ ###########################################################################################################
  def handle_client_requests( self ):
-    
+
     socket = self.context.socket( zmq.REP )
     socket.bind("%s:%d" % ( self.protocol, self.port_client_req ) )
     
     self.log.info("Starting control socket to port %d " % self.port_client_req  )
-     
-    commands_to_functions_map = { 'launch' : self.module_launch,
-                                  'kill'   : self.module_kill
-                                }
     while True:
-      message = socket.recv().lower()
+      self.check_for_died_modules()
+      message = self.module_message_receive( socket )
+      
+      if message == None:
+         continue
       
       if message == "term":
          break
          
-      if message == "list":
-         socket.send("MODULES " + " ".join( self.registered_modules.keys() ) )
-         continue
+      self.module_message_process( message, socket )
       
-      parts=message.split()
+ ###########################################################################################################
+ def check_for_died_modules( self ):
+   # Check for modules that have died
+   to_kill = []
+   for module_name in self.running_modules:
+      if self.running_modules[ module_name ].has_died() == True:
+         to_kill.append( module_name )
+   for module_name in to_kill:
+      self.function_module_kill(module_name)
+         
+ ###########################################################################################################
+ def module_message_receive(self, socket):
+      return socket.recv( ).lower()
+   
+ def module_message_process( self, message, socket ):
+   parts=message.split()
+   
+   if len(parts) < 1 or parts[0] not in self.commands_to_functions_map:
+      self.log.warning("Not sure what we received: " + message )
+      socket.send("FAIL")
+      return True
+   
+   message = self.commands_to_functions_map[ parts[0] ]( parts[1:] )
+   socket.send(message)
       
-      if len(parts) != 2 or parts[0] not in commands_to_functions_map:
-         self.log.warning("Not sure what we received: " + message )
-         socket.send("FAIL")
-         continue
-      
-      if commands_to_functions_map[ parts[0] ]( parts[1] ):
-        socket.send("OK")
-      else:
-        socket.send("FAIL")
+
+ def function_print_info( self, arguments ):
+      return "MODULES " + " ".join( self.registered_modules.keys())
         
  ###########################################################################################################     
- def module_launch(self, module_name ):
+
+    
+ def function_module_launch(self, module_arguments ):
+     if len( module_arguments ) < 1:
+        self.log.warning("Launch module called without parameters")
+        return "FAIL"
+     
+     module_name = module_arguments[0]
+     module_arguments = module_arguments[1:]
+     
      if module_name not in self.registered_modules:
         self.log.warning("Module '%s' is not known, cannot be launched." % module_name )
-        return False
+        return "FAIL"
      
      if module_name in self.running_modules:
         self.log.warning("Module '%s' is already running." % module_name )
-        return False;
+        return "FAIL"
      
-     self.log.info("Launching module '%s'." % module_name )
-     module = self.registered_modules[module_name]( self.log, self.config ) 
+     self.log.info("Launching module '%s' -- %s." % (module_name, ",".join(module_arguments) ) )
+     try:
+        module = self.registered_modules[module_name]( self.log, self.config, module_arguments ) 
      
-     if module.start_module() == False:
-        return False
+        if module.start_module() == False:
+           return "FAIL"
+     except Exception as e:
+        self.log.error("Module launch failed: " + str(e))
+        return "FAIL"
      
      self.running_modules[ module_name ] = module
-     return True
+     return "OK"
   
   
- def module_kill( self, module_name ):
+ def function_module_kill( self, module_name ):
      if module_name not in self.running_modules:
         self.log.warning("Module '%s' kill requested but its not running!" % module_name )
-        return False
+        return "FAIL"
      
      self.running_modules[ module_name ].terminate()
      del( self.running_modules[ module_name ] )
      self.log.info("Killing module '%s'." % module_name )
-     return True
+     return "OK"
    
    
-
-
 
    
 if __name__ == "__main__":

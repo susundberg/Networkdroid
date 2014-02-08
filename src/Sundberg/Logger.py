@@ -11,6 +11,8 @@ class Logger:
          self.fids.append( open( filename, 'w' ) )
       self.info( "Started at " + time.strftime("%X %x %Z") )
    
+   def debug( self, message ):
+      self.output_raw("(DD) " + message )
    def info( self, message ):
       self.output_raw("(II) " + message )
    def error( self, message ):

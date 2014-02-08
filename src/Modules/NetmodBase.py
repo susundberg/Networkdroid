@@ -3,34 +3,51 @@
 import zmq
 
 from time import sleep
-
 from  multiprocessing import Process
 
 ###########################################################################################################
 #
 ###########################################################################################################
-class BasePing:
-   def __init__( self, log, config):
+class NetmodBase:
+   def __init__( self, log, config, parameters ):
       self.log     = log
       self.config  = config
       self.socket  = None
+      self.parameters = parameters
+      self.process  = None
+      self.timestep = 0
       
    def start_module(self):
-      process = Process( target = BasePing.work_wrapper, args=(self,) )
+      process = Process( target = NetmodBase.work_wrapper, args=(self,) )
       process.daemon = True
-      
       process.start()
-      
       self.process = process
+   
+   def has_died(self):
+      self.timestep = self.timestep + 1
       
+      print "Query on " + self.__class__.__name__
+      
+      if self.timestep == 1:
+         return False
+      
+      if self.process and self.process.is_alive() == True:
+        return False
+      return True
+   
    def terminate(self):
       if self.process != None:
          self.process.terminate()
+         
+   
+   def send_error( self, message ):
+      self.log.error("Error on module %s : %s " % (self.__class__.__name__, message ) )
+      self.send_message( "ERROR: message")
       
-   def sendmessage(self, message ):
+   def send_message(self, message ):
       message =  "%s: %s" % (self.__class__.__name__, message )
       self.socket.send( message )
-   
+       
    def work_wrapper(self):
      context = zmq.Context(1)
      
@@ -41,8 +58,13 @@ class BasePing:
 
    def work(self):
       self.log.info("Base module running here hey")
+      
+      if len(self.parameters) > 0:
+         self.send_error("Base module does not accept parameters.")
+         return False
+      
       while True:
-         self.sendmessage("HB")
+         self.send_message("HB")
          sleep(1)
       
    
