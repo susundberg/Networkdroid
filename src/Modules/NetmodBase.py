@@ -42,7 +42,7 @@ class NetmodBase:
    
    def send_error( self, message ):
       self.log.error("Error on module %s : %s " % (self.__class__.__name__, message ) )
-      self.send_message( "ERROR: message")
+      self.send_message( "ERROR: " + message )
       
    def send_message(self, message ):
       message =  "%s: %s" % (self.__class__.__name__, message )
@@ -57,15 +57,5 @@ class NetmodBase:
      self.work()
 
    def work(self):
-      self.log.info("Base module running here hey")
-      
-      if len(self.parameters) > 0:
-         self.send_error("Base module does not accept parameters.")
-         return False
-      
-      while True:
-         self.send_message("HB")
-         sleep(1)
-      
-   
+      raise Exception("Base module work called")
    

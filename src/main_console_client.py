@@ -4,7 +4,8 @@ import argparse
 import sys
 import zmq
 from  multiprocessing import Process
-
+import time
+import re
 
 def get_command_line_arguments( ):
    parser = argparse.ArgumentParser(description='Server for Networkdroid')
@@ -30,12 +31,21 @@ def main( args ):
    control_socket.connect( protocol + ":" + config["port_client_req"] )
    print "Starting console"
    
+   sleep_pattern=re.compile(r"sleep ([\d\.]+)")
+   
    while True:
       input_line = sys.stdin.readline().strip()
       
       if len(input_line) < 1:
          break
-         
+      
+      sleep_match = sleep_pattern.match( input_line )
+      if sleep_match:
+        to_sleep = float( sleep_match.group(1) ) 
+        print "Sleep instruction, waiting for %f seconds" % to_sleep 
+        time.sleep( to_sleep  )
+        continue
+     
       print "S: " + input_line
       control_socket.send(input_line)
       print "R: " + control_socket.recv()

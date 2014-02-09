@@ -10,7 +10,7 @@ import time
 from  multiprocessing import Process
 
 from Sundberg.Logger import *
-from Modules import NetmodBase, Ping
+from Modules import NetmodBase, Ping, Command
 
 
 def get_command_line_arguments( ):
@@ -27,20 +27,23 @@ def main( args ):
    
    server = Server( log, config )     
    
-   server.registered_modules = { 'baseping' : NetmodBase.NetmodBase,
-                                 'ping' : Ping.Ping
+   server.registered_modules = { 'heartbeat' : Ping.PingAlive,
+                                 'ping_ip'   : Ping.PingIP,
+                                 'ping_host' : Ping.PingHost,
+                                 'ssh'       : Command.Ssh
                                }
    
    server.commands_to_functions_map = { 
-                                 'launch' : server.function_module_launch,
-                                 'kill'   : server.function_module_kill,
-                                 'list'   : server.function_print_info
+                                 'launch' : Server.function_module_launch,
+                                 'kill'   : Server.function_module_kill,
+                                 'list'   : Server.function_print_info,
+                                 'ping'   : function_ping_pong
                                 }
    
    # Then start the forward process, it will handle all messages
    # from modules to all the clients
    server.forward_modules_to_clients()
-   server.function_module_launch( ["baseping"] )
+   server.function_module_launch( ["heartbeat"] )
    
    log.info("Forwarder started")
    server.handle_client_requests()
@@ -52,8 +55,8 @@ def main( args ):
    return 0
 
 
-
-
+def function_ping_pong( server, module_arguments ):
+   return "PONG " + " ".join(module_arguments)
 
 
 ###########################################################################################################
@@ -165,7 +168,8 @@ class Server:
       socket.send("FAIL")
       return True
    
-   message = self.commands_to_functions_map[ parts[0] ]( parts[1:] )
+   function_to_run = self.commands_to_functions_map[ parts[0] ]
+   message = function_to_run ( self, parts[1:] )
    socket.send(message)
       
 
@@ -205,7 +209,12 @@ class Server:
      return "OK"
   
   
- def function_module_kill( self, module_name ):
+ def function_module_kill( self, module_arguments ):
+     if len( module_arguments ) != 1:
+        self.log.warning("Module kill requested with bad parameters!")
+        return "FAIL"
+     
+     module_name = module_arguments[0]   
      if module_name not in self.running_modules:
         self.log.warning("Module '%s' kill requested but its not running!" % module_name )
         return "FAIL"
