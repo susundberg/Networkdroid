@@ -36,6 +36,10 @@ Bind on server side to known port. Clients connect. Accept commands:
   * Kills module with given name if running
    * Returns 'OK' if module killed
    * Returns 'FAIL' if module is not running 
+ * ``` LIST ```
+  * Returns list of all known modules
+ * ``` PING ```
+  * Returns 'PONG' and all arguments joined with ',' 
 
 ### Modules PUB to Clients SUB
 Server acts as Forwarder SUB->PUB for Modules to talk Clients
@@ -45,9 +49,8 @@ Forwards all messages from all modules to all clients. Needed as gateway so that
 ```<module name> <message type> <message data>```
 
 Examples:
-* 'SSH HB OK' -- Module SSH sends heartbeat, all ok
-* 'SSH HB FAIL' -- Module SSH sends heartbeat, something is not ok, but we are running
-* 'SSH HB TERM' -- Module SSH sends heartbeat, bail out, last heartbeat.
+* 'SSH : HB OK' -- Module SSH sends heartbeat, all ok
+* 'SSH : TERM' -- Module SSH sends heartbeat, bail out, last heartbeat.
 * 'SSH INFO Connection ok' -- Module SSH sends INFO string to all clients
 * 'TCPDUMP INFO 11:47:45.178938 IP arn06s02-in-f5.1e100.net.http > sundberg-MS-7680.local.51050:' -- Module TCPDUMP sends INFO string to all clients 
 
