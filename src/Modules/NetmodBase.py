@@ -3,19 +3,22 @@
 import zmq
 
 from time import sleep
-from  multiprocessing import Process
+from  multiprocessing import Process, Value
 
 ###########################################################################################################
 #
 ###########################################################################################################
-class NetmodBase:
+class NetmodBase(  ):
    def __init__( self, log, config, parameters ):
       self.log     = log
       self.config  = config
       self.socket  = None
       self.parameters = parameters
       self.process  = None
+      self.process_exit_flag       = Value('i')
+      self.process_exit_flag.value = 0
       self.timestep = 0
+      
       
    def start_module(self):
       process = Process( target = NetmodBase.work_wrapper, args=(self,) )
@@ -23,27 +26,29 @@ class NetmodBase:
       process.start()
       self.process = process
    
-   def has_died(self):
+   def timetick(self):
       self.timestep = self.timestep + 1
+      if self.timestep < 1:
+         return True
       
-      print "Query on " + self.__class__.__name__
-      
-      if self.timestep == 1:
+      if self.process:
+         if self.process_exit_flag.value > 0:
+           self.terminate()
+         if self.process.is_alive() == True:
+           return True
          return False
       
-      if self.process and self.process.is_alive() == True:
-        return False
-      return True
+      raise Exception("Process not created but time gone")
    
    def terminate(self):
       self.log.warning("Module %s received TERM!" % (self.__class__.__name__) )
       if self.process != None:
-         self.process.terminate()
-         self.process.join()
-      self.process = None
+         if self.process_exit_flag.value < 5 :
+            self.process_exit_flag.value = self.process_exit_flag.value + 1
+         else :
+            self.log.warning("Module %s did not quit peacefully!" % (self.__class__.__name__) )
+            self.process.terminate()
       
-         
-   
    def send_error( self, message ):
       self.log.error("Error on module %s : %s " % (self.__class__.__name__, message ) )
       self.send_message( "ERROR: " + message )
@@ -60,6 +65,7 @@ class NetmodBase:
      self.socket = module_socket  
      self.work()
 
-   def work(self):
+   def work( self ):
       raise Exception("Base module work called")
-   
+   def term( self ):
+      raise Exception("Base module work called")

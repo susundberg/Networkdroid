@@ -8,16 +8,17 @@ import time
 
 class Ping( NetmodBase.NetmodBase ):
    def pingwork( self, target_host ):
-      
       self.log.info("Ping module starting with target host '%s'" % target_host )
       
-      process = subprocess.Popen( ['/bin/ping',target_host] , stdout=subprocess.PIPE )
+      pipe_process = subprocess.Popen( ['/bin/ping',target_host] , stdout=subprocess.PIPE )
       
       pattern = re.compile( r".*icmp_req=\d+ ttl=\d+ time=[\d\.]+")
       
       while True:
-         message = process.stdout.readline()
-         
+         if self.process_exit_flag.value > 0 :
+           break
+           
+         message = pipe_process.stdout.readline()
          if message == "":
             self.log.debug("Received EOF")
             return
@@ -27,7 +28,11 @@ class Ping( NetmodBase.NetmodBase ):
             self.send_message( "HB" )
          else:
             self.log.debug("Received unknown line: " + message )
-
+            
+      self.log.debug("Doing kill!")      
+      pipe_process.kill()
+      
+   
 class PingAlive( NetmodBase.NetmodBase ):
    def work( self ):
       while True:

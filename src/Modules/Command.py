@@ -6,16 +6,18 @@ import re
 import time
 
 class Command( NetmodBase.NetmodBase ):
-   
    def work_command( self, target_command ):
        
       self.log.info("Command ''%s' started " % ",".join( target_command)  )
       # Note: This surely leaves space for bad input, but as well the command could be 'rm -rf /'.
-      process = subprocess.Popen( target_command , stdout=subprocess.PIPE )
+      process_pipe = subprocess.Popen( target_command , stdout=subprocess.PIPE )
       
       while True:
         time.sleep(1.0)
-        process_state = process.poll()
+        
+        if self.process_exit_flag.value > 0 :
+           break
+        process_state = process_pipe.poll()
          
         if process_state == None:
            # Still running
@@ -32,7 +34,12 @@ class Command( NetmodBase.NetmodBase ):
         
         self.send_message( "TERM" )
         return True
-
+     
+      self.log.debug("Doing PIPE KILL")
+      process_pipe.kill()
+   
+      
+   
 
 class Ssh( Command ):
    def work( self ):

@@ -112,7 +112,8 @@ class Server:
       backend.bind("%s:%d" % ( self.protocol, self.port_client_pub  ) )
 
       zmq.device( zmq.FORWARDER, frontend, backend )
-      print "FAIL" 
+      print("FAIL")
+      
     except Exception as e:
        self.log.error("Exception while running forward: " + str(e))
        raise Exception("Forwarder failed")
@@ -151,10 +152,12 @@ class Server:
    # Check for modules that have died
    to_kill = []
    for module_name in self.running_modules:
-      if self.running_modules[ module_name ].has_died() == True:
+      if self.running_modules[ module_name ].timetick() == False:
          to_kill.append( module_name )
    for module_name in to_kill:
-      self.function_module_kill( [ module_name ] )
+     del self.running_modules[ module_name ] 
+     self.log.info("Setting module '%s' as dead." % module_name )
+
          
  ###########################################################################################################
  def module_message_receive(self, socket):
@@ -219,7 +222,6 @@ class Server:
   
   
  def function_module_kill( self, module_arguments ):
-     print "GOT : " + str( module_arguments )
      if len( module_arguments ) != 1:
         self.log.warning("Module kill requested with bad parameters!")
         return "FAIL"
@@ -230,8 +232,6 @@ class Server:
         return "FAIL"
      
      self.running_modules[ module_name ].terminate()
-     del self.running_modules[ module_name ] 
-     self.log.info("Killing module '%s'." % module_name )
      return "OK"
    
    
