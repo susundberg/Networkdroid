@@ -132,7 +132,7 @@ class Server:
 
     socket = self.context.socket( zmq.REP )
     socket.bind("%s:%d" % ( self.protocol, self.port_client_req ) )
-    
+    socket.setsockopt(zmq.RCVTIMEO, 1000 )
     self.log.info("Starting control socket to port %d " % self.port_client_req  )
     while True:
       self.check_for_died_modules()
@@ -154,11 +154,20 @@ class Server:
       if self.running_modules[ module_name ].has_died() == True:
          to_kill.append( module_name )
    for module_name in to_kill:
-      self.function_module_kill(module_name)
+      self.function_module_kill( [ module_name ] )
          
  ###########################################################################################################
  def module_message_receive(self, socket):
-      return socket.recv( ).lower()
+   try:
+      message = socket.recv( )
+   except zmq.ZMQError as error:
+     if error.errno == zmq.EAGAIN :
+        # Timeouted, check for dead modules and continue
+      return None
+     else :
+      raise( error )
+   return message.lower()
+
    
  def module_message_process( self, message, socket ):
    parts=message.split()
@@ -210,6 +219,7 @@ class Server:
   
   
  def function_module_kill( self, module_arguments ):
+     print "GOT : " + str( module_arguments )
      if len( module_arguments ) != 1:
         self.log.warning("Module kill requested with bad parameters!")
         return "FAIL"
@@ -220,7 +230,7 @@ class Server:
         return "FAIL"
      
      self.running_modules[ module_name ].terminate()
-     del( self.running_modules[ module_name ] )
+     del self.running_modules[ module_name ] 
      self.log.info("Killing module '%s'." % module_name )
      return "OK"
    

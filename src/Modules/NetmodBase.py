@@ -36,8 +36,12 @@ class NetmodBase:
       return True
    
    def terminate(self):
+      self.log.warning("Module %s received TERM!" % (self.__class__.__name__) )
       if self.process != None:
          self.process.terminate()
+         self.process.join()
+      self.process = None
+      
          
    
    def send_error( self, message ):
