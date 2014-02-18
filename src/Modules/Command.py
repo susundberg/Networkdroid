@@ -35,7 +35,7 @@ class Command( NetmodBase.NetmodBase ):
         self.send_message( "TERM" )
         return True
      
-      self.log.debug("Doing PIPE KILL")
+      self.log.debug("Command: Terminating")
       process_pipe.kill()
    
       

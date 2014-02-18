@@ -17,7 +17,6 @@ class Ping( NetmodBase.NetmodBase ):
       while True:
          if self.process_exit_flag.value > 0 :
            break
-           
          message = pipe_process.stdout.readline()
          if message == "":
             self.log.debug("Received EOF")
@@ -28,8 +27,7 @@ class Ping( NetmodBase.NetmodBase ):
             self.send_message( "HB" )
          else:
             self.log.debug("Received unknown line: " + message )
-            
-      self.log.debug("Doing kill!")      
+      self.log.debug("Ping: Terminating")      
       pipe_process.kill()
       
    

@@ -43,11 +43,12 @@ class NetmodBase(  ):
    def terminate(self):
       self.log.warning("Module %s received TERM!" % (self.__class__.__name__) )
       if self.process != None:
-         if self.process_exit_flag.value < 5 :
+         if self.process_exit_flag.value < 10 :
             self.process_exit_flag.value = self.process_exit_flag.value + 1
          else :
             self.log.warning("Module %s did not quit peacefully!" % (self.__class__.__name__) )
             self.process.terminate()
+            self.process = None
       
    def send_error( self, message ):
       self.log.error("Error on module %s : %s " % (self.__class__.__name__, message ) )
